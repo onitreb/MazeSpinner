@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Maze Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .controls {
+            width: 300px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 5px;
+        }
+
+        .value-display {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .maze-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        #maze-canvas {
+            border: 1px solid #ddd;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .rotation-controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 20px;
+        }
+
+        #rotate-left {
+            background-color: #2196F3;
+        }
+
+        #rotate-right {
+            background-color: #2196F3;
+        }
+
+        #resetBtn {
+            background-color: #f44336;
+        }
+
+        .status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255,255,255,0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <h2>Maze Controls</h2>
+            <div class="control-group">
+                <label for="algorithm">Algorithm</label>
+                <select id="algorithm">
+                    <option value="backtracker">Recursive Backtracker</option>
+                    <option value="kruskal">Kruskal's Algorithm</option>
+                    <option value="prim">Prim's Algorithm</option>
+                    <option value="binarytree">Binary Tree</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="size">Grid Size</label>
+                <input type="range" id="size" min="5" max="30" value="11">
+                <div class="value-display"><span id="size-value">11</span> × <span id="size-value-2">11</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="ballMass">Ball Mass</label>
+                <input type="range" id="ballMass" min="0.1" max="5" step="0.1" value="1">
+                <div class="value-display"><span id="mass-value">1</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="friction">Friction</label>
+                <input type="range" id="friction" min="0.01" max="0.5" step="0.01" value="0.05">
+                <div class="value-display"><span id="friction-value">0.05</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="rotationSpeed">Rotation Speed</label>
+                <input type="range" id="rotationSpeed" min="0.001" max="0.05" step="0.001" value="0.03">
+                <div class="value-display"><span id="rotation-value">0.01</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="bounciness">Ball Bounciness</label>
+                <input type="range" id="bounciness" min="0" max="1" step="0.05" value="0.6">
+                <div class="value-display"><span id="bounce-value">0.6</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="gravity">Gravity Strength</label>
+                <input type="range" id="gravity" min="0.0001" max="0.003" step="0.0001" value="0.001">
+                <div class="value-display"><span id="gravity-value">0.001</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="staticFriction">Starting Friction</label>
+                <input type="range" id="staticFriction" min="0" max="0.2" step="0.01" value="0.05">
+                <div class="value-display"><span id="static-friction-value">0.05</span></div>
+            </div>
+            
+            <div class="control-group">
+                <label for="wallFriction">Wall Friction</label>
+                <input type="range" id="wallFriction" min="0" max="1" step="0.05" value="0.1">
+                <div class="value-display"><span id="wall-friction-value">0.1</span></div>
+            </div>
+            
+            <button id="generateBtn">Generate New Maze</button>
+            <button id="resetBtn">Reset Ball</button>
+        </div>
+        
+        <div class="maze-container">
+            <div class="status" id="status">Ready</div>
+            <canvas id="maze-canvas" width="600" height="600"></canvas>
+            
+            <div class="rotation-controls">
+                <button id="rotate-left">↺ Rotate Left</button>
+                <button id="rotate-right">↻ Rotate Right</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script>
+        // Matter.js modules
+        const { Engine, Render, World, Bodies, Body, Events, Runner, Common } = Matter;
+
+        // Game variables
+        let engine, render, runner;
+        let walls = [];
+        let ball;
+        let exit;
+        let currentRotation = 0;
+        let isGameWon = false;
+
+        // DOM elements
+        const canvas = document.getElementById('maze-canvas');
+        const algorithmSelect = document.getElementById('algorithm');
+        const sizeSlider = document.getElementById('size');
+        const sizeValue = document.getElementById('size-value');
+        const sizeValue2 = document.getElementById('size-value-2');
+        const ballMassSlider = document.getElementById('ballMass');
+        const massValue = document.getElementById('mass-value');
+        const frictionSlider = document.getElementById('friction');
+        const frictionValue = document.getElementById('friction-value');
+        const rotationSpeedSlider = document.getElementById('rotationSpeed');
+        const rotationValue = document.getElementById('rotation-value');
+        const generateBtn = document.getElementById('generateBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const rotateLeftBtn = document.getElementById('rotate-left');
+        const rotateRightBtn = document.getElementById('rotate-right');
+        const statusEl = document.getElementById('status');
+
+        // Initialize the application
+        function init() {
+            // Create engine
+            engine = Engine.create();
+            
+            // Set gravity manually
+            engine.gravity.x = 0;
+            engine.gravity.y = 1;
+            
+            // Create renderer
+            render = Render.create({
+                canvas: canvas,
+                engine: engine,
+                options: {
+                    width: canvas.width,
+                    height: canvas.height,
+                    wireframes: false,
+                    background: '#f0f0f0'
+                }
+            });
+            
+            // Add custom rendering with scaling to prevent cropping during rotation
+            Events.on(render, 'beforeRender', function() {
+                const ctx = render.context;
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(currentRotation);
+                
+                // Scale down to 75% to prevent cropping at corners during rotation
+                ctx.scale(0.75, 0.75);
+                
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+            });
+            
+            Events.on(render, 'afterRender', function() {
+                render.context.restore();
+            });
+            
+            // Create runner
+            runner = Runner.create();
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Generate initial maze
+            generateMaze();
+            
+            // Set gravity level - user adjustable
+            const gravityValue = parseFloat(document.getElementById('gravity').value);
+            engine.gravity.scale = gravityValue;
+            
+            // Start the engine and renderer
+            Runner.run(runner, engine);
+            Render.run(render);
+            
+            // Setup collision detection for exit
+            Events.on(engine, 'collisionStart', function(event) {
+                const pairs = event.pairs;
+                
+                for (let i = 0; i < pairs.length; i++) {
+                    const pair = pairs[i];
+                    
+                    if ((pair.bodyA === ball && pair.bodyB === exit) ||
+                        (pair.bodyA === exit && pair.bodyB === ball)) {
+                        handleWin();
+                    }
+                }
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Update displayed values for sliders
+            sizeSlider.addEventListener('input', function() {
+                sizeValue.textContent = this.value;
+                sizeValue2.textContent = this.value;
+            });
+            
+            ballMassSlider.addEventListener('input', function() {
+                massValue.textContent = this.value;
+                if (ball) {
+                    Body.setMass(ball, parseFloat(this.value));
+                }
+            });
+            
+            frictionSlider.addEventListener('input', function() {
+                frictionValue.textContent = this.value;
+                if (ball) {
+                    ball.friction = parseFloat(this.value);
+                }
+            });
+            
+            rotationSpeedSlider.addEventListener('input', function() {
+                rotationValue.textContent = this.value;
+            });
+            
+            const bouncinessSlider = document.getElementById('bounciness');
+            const bounceValue = document.getElementById('bounce-value');
+            bouncinessSlider.addEventListener('input', function() {
+                bounceValue.textContent = this.value;
+                if (ball) {
+                    ball.restitution = parseFloat(this.value);
+                }
+            });
+            
+            const gravitySlider = document.getElementById('gravity');
+            const gravityValue = document.getElementById('gravity-value');
+            gravitySlider.addEventListener('input', function() {
+                gravityValue.textContent = this.value;
+                engine.gravity.scale = parseFloat(this.value);
+            });
+            
+            const staticFrictionSlider = document.getElementById('staticFriction');
+            const staticFrictionValue = document.getElementById('static-friction-value');
+            staticFrictionSlider.addEventListener('input', function() {
+                staticFrictionValue.textContent = this.value;
+                if (ball) {
+                    ball.frictionStatic = parseFloat(this.value);
+                }
+            });
+            
+            const wallFrictionSlider = document.getElementById('wallFriction');
+            const wallFrictionValue = document.getElementById('wall-friction-value');
+            wallFrictionSlider.addEventListener('input', function() {
+                wallFrictionValue.textContent = this.value;
+                walls.forEach(wall => {
+                    wall.friction = parseFloat(this.value);
+                });
+            });
+            
+            // Button event listeners
+            generateBtn.addEventListener('click', generateMaze);
+            resetBtn.addEventListener('click', resetBall);
+            
+            rotateLeftBtn.addEventListener('mousedown', function() {
+                startRotation(-1);
+            });
+            
+            rotateRightBtn.addEventListener('mousedown', function() {
+                startRotation(1);
+            });
+            
+            rotateLeftBtn.addEventListener('mouseup', stopRotation);
+            rotateRightBtn.addEventListener('mouseup', stopRotation);
+            rotateLeftBtn.addEventListener('mouseleave', stopRotation);
+            rotateRightBtn.addEventListener('mouseleave', stopRotation);
+            
+            // Keyboard controls
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft') {
+                    startRotation(-1);
+                } else if (e.key === 'ArrowRight') {
+                    startRotation(1);
+                }
+            });
+            
+            document.addEventListener('keyup', function(e) {
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    stopRotation();
+                }
+            });
+        }
+
+        // Rotation variables
+        let rotationInterval = null;
+        let rotationDirection = 0;
+
+        // Start rotation
+        function startRotation(direction) {
+            rotationDirection = direction;
+            if (rotationInterval === null) {
+                rotationInterval = setInterval(function() {
+                    const speed = parseFloat(rotationSpeedSlider.value);
+                    rotateMaze(rotationDirection * speed);
+                    console.log(`Rotating: direction=${rotationDirection}, speed=${speed}, current=${currentRotation}`);
+                }, 16);
+            }
+        }
+
+        // Stop rotation
+        function stopRotation() {
+            clearInterval(rotationInterval);
+            rotationInterval = null;
+        }
+
+        // Rotate the maze
+        function rotateMaze(angle) {
+            if (isGameWon) return;
+            
+            currentRotation += angle;
+            
+            // Update gravity to simulate maze rotation
+            engine.gravity.x = Math.sin(currentRotation);
+            engine.gravity.y = Math.cos(currentRotation);
+            
+            // Update status
+            statusEl.textContent = `Rotation: ${Math.round(currentRotation * 180 / Math.PI) % 360}°`;
+        }
+
+        // Generate a new maze
+        function generateMaze() {
+            if (isGameWon) isGameWon = false;
+            
+            // Clear existing bodies
+            clearBodies();
+            
+            // Get current settings
+            const size = parseInt(sizeSlider.value);
+            const algorithm = algorithmSelect.value;
+            
+            // Create maze grid
+            const grid = createGrid(size, size);
+            
+            // Generate maze based on selected algorithm
+            switch (algorithm) {
+                case 'backtracker':
+                    recursiveBacktracker(grid, size, size);
+                    break;
+                case 'kruskal':
+                    kruskalAlgorithm(grid, size, size);
+                    break;
+                case 'prim':
+                    primAlgorithm(grid, size, size);
+                    break;
+                case 'binarytree':
+                    binaryTreeAlgorithm(grid, size, size);
+                    break;
+            }
+            
+            // Create physics bodies for maze
+            createMazeBodies(grid, size, size);
+            
+            // Reset status
+            statusEl.textContent = 'Get the ball to the red exit!';
+            
+            // Reset ball
+            resetBall();
+        }
+
+        // Create an empty grid
+        function createGrid(width, height) {
+            const grid = [];
+            
+            for (let y = 0; y < height; y++) {
+                grid[y] = [];
+                for (let x = 0; x < width; x++) {
+                    grid[y][x] = {
+                        x: x,
+                        y: y,
+                        walls: {
+                            north: true,
+                            east: true,
+                            south: true,
+                            west: true
+                        },
+                        visited: false
+                    };
+                }
+            }
+            
+            return grid;
+        }
+
+        // Recursive Backtracker algorithm
+        function recursiveBacktracker(grid, width, height) {
+            // Stack for tracking current path
+            const stack = [];
+            
+            // Start at a random cell
+            const startX = Math.floor(Math.random() * width);
+            const startY = Math.floor(Math.random() * height);
+            const startCell = grid[startY][startX];
+            
+            // Mark as visited
+            startCell.visited = true;
+            stack.push(startCell);
+            
+            // Continue while there are cells in the stack
+            while (stack.length > 0) {
+                // Get current cell from the stack
+                const currentCell = stack[stack.length - 1];
+                
+                // Get unvisited neighbors
+                const neighbors = getUnvisitedNeighbors(currentCell, grid, width, height);
+                
+                if (neighbors.length > 0) {
+                    // Choose a random unvisited neighbor
+                    const randomIndex = Math.floor(Math.random() * neighbors.length);
+                    const nextCell = neighbors[randomIndex];
+                    
+                    // Remove walls between current cell and next cell
+                    removeWalls(currentCell, nextCell);
+                    
+                    // Mark next cell as visited and add to stack
+                    nextCell.visited = true;
+                    stack.push(nextCell);
+                } else {
+                    // Backtrack
+                    stack.pop();
+                }
+            }
+        }
+
+        // Kruskal's algorithm
+        function kruskalAlgorithm(grid, width, height) {
+            // List of all walls
+            const walls = [];
+            
+            // Create sets for each cell
+            const sets = new Map();
+            
+            // Initialize sets
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const cell = grid[y][x];
+                    sets.set(`${x},${y}`, new Set([`${x},${y}`]));
+                    
+                    // Add walls to list
+                    if (x < width - 1) {
+                        walls.push({
+                            x: x,
+                            y: y,
+                            direction: 'east'
+                        });
+                    }
+                    
+                    if (y < height - 1) {
+                        walls.push({
+                            x: x,
+                            y: y,
+                            direction: 'south'
+                        });
+                    }
+                }
+            }
+            
+            // Shuffle walls
+            shuffleArray(walls);
+            
+            // Process each wall
+            for (const wall of walls) {
+                const { x, y, direction } = wall;
+                const cell1 = `${x},${y}`;
+                const cell2 = direction === 'east' ? `${x+1},${y}` : `${x},${y+1}`;
+                
+                // Get sets for both cells
+                const set1 = sets.get(cell1);
+                const set2 = sets.get(cell2);
+                
+                // If cells are in different sets, remove the wall between them
+                if (!setsAreEqual(set1, set2)) {
+                    // Remove wall
+                    if (direction === 'east') {
+                        grid[y][x].walls.east = false;
+                        grid[y][x+1].walls.west = false;
+                    } else {
+                        grid[y][x].walls.south = false;
+                        grid[y+1][x].walls.north = false;
+                    }
+                    
+                    // Merge sets
+                    const mergedSet = new Set([...set1, ...set2]);
+                    
+                    // Update sets for all cells in both sets
+                    for (const cell of mergedSet) {
+                        sets.set(cell, mergedSet);
+                    }
+                }
+            }
+        }
+
+        // Check if two sets are equal
+        function setsAreEqual(set1, set2) {
+            if (set1.size !== set2.size) return false;
+            for (const item of set1) {
+                if (!set2.has(item)) return false;
+            }
+            return true;
+        }
+
+        // Prim's algorithm
+        function primAlgorithm(grid, width, height) {
+            // Start with a random cell
+            const startX = Math.floor(Math.random() * width);
+            const startY = Math.floor(Math.random() * height);
+            
+            // List of walls to consider
+            const walls = [];
+            
+            // Mark the starting cell as visited
+            grid[startY][startX].visited = true;
+            
+            // Add the walls of the starting cell to the wall list
+            addWallsToList(startX, startY, grid, width, height, walls);
+            
+            // Continue until there are no more walls to consider
+            while (walls.length > 0) {
+                // Choose a random wall
+                const randomIndex = Math.floor(Math.random() * walls.length);
+                const { x, y, direction } = walls[randomIndex];
+                
+                // Remove the wall from the list
+                walls.splice(randomIndex, 1);
+                
+                // Get the adjacent cell
+                let nx = x, ny = y;
+                
+                if (direction === 'north') ny--;
+                else if (direction === 'east') nx++;
+                else if (direction === 'south') ny++;
+                else if (direction === 'west') nx--;
+                
+                // If the adjacent cell hasn't been visited yet
+                if (nx >= 0 && ny >= 0 && nx < width && ny < height && !grid[ny][nx].visited) {
+                    // Remove the wall
+                    if (direction === 'north') {
+                        grid[y][x].walls.north = false;
+                        grid[ny][nx].walls.south = false;
+                    } else if (direction === 'east') {
+                        grid[y][x].walls.east = false;
+                        grid[ny][nx].walls.west = false;
+                    } else if (direction === 'south') {
+                        grid[y][x].walls.south = false;
+                        grid[ny][nx].walls.north = false;
+                    } else if (direction === 'west') {
+                        grid[y][x].walls.west = false;
+                        grid[ny][nx].walls.east = false;
+                    }
+                    
+                    // Mark the adjacent cell as visited
+                    grid[ny][nx].visited = true;
+                    
+                    // Add the walls of the adjacent cell to the wall list
+                    addWallsToList(nx, ny, grid, width, height, walls);
+                }
+            }
+        }
+
+        // Binary Tree algorithm
+        function binaryTreeAlgorithm(grid, width, height) {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const directions = [];
+                    
+                    // Can go north?
+                    if (y > 0) {
+                        directions.push('north');
+                    }
+                    
+                    // Can go west?
+                    if (x > 0) {
+                        directions.push('west');
+                    }
+                    
+                    // If we have directions to choose from
+                    if (directions.length > 0) {
+                        // Choose a random direction
+                        const direction = directions[Math.floor(Math.random() * directions.length)];
+                        
+                        // Remove the wall in that direction
+                        if (direction === 'north') {
+                            grid[y][x].walls.north = false;
+                            grid[y-1][x].walls.south = false;
+                        } else if (direction === 'west') {
+                            grid[y][x].walls.west = false;
+                            grid[y][x-1].walls.east = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Add walls of a cell to the wall list
+        function addWallsToList(x, y, grid, width, height, walls) {
+            if (y > 0) {
+                walls.push({ x, y, direction: 'north' });
+            }
+            
+            if (x < width - 1) {
+                walls.push({ x, y, direction: 'east' });
+            }
+            
+            if (y < height - 1) {
+                walls.push({ x, y, direction: 'south' });
+            }
+            
+            if (x > 0) {
+                walls.push({ x, y, direction: 'west' });
+            }
+        }
+
+        // Get unvisited neighbors of a cell
+        function getUnvisitedNeighbors(cell, grid, width, height) {
+            const { x, y } = cell;
+            const neighbors = [];
+            
+            // North
+            if (y > 0 && !grid[y-1][x].visited) {
+                neighbors.push(grid[y-1][x]);
+            }
+            
+            // East
+            if (x < width - 1 && !grid[y][x+1].visited) {
+                neighbors.push(grid[y][x+1]);
+            }
+            
+            // South
+            if (y < height - 1 && !grid[y+1][x].visited) {
+                neighbors.push(grid[y+1][x]);
+            }
+            
+            // West
+            if (x > 0 && !grid[y][x-1].visited) {
+                neighbors.push(grid[y][x-1]);
+            }
+            
+            return neighbors;
+        }
+
+        // Remove walls between two cells
+        function removeWalls(cell1, cell2) {
+            const dx = cell2.x - cell1.x;
+            const dy = cell2.y - cell1.y;
+            
+            if (dx === 1) {
+                // cell2 is to the east of cell1
+                cell1.walls.east = false;
+                cell2.walls.west = false;
+            } else if (dx === -1) {
+                // cell2 is to the west of cell1
+                cell1.walls.west = false;
+                cell2.walls.east = false;
+            } else if (dy === 1) {
+                // cell2 is to the south of cell1
+                cell1.walls.south = false;
+                cell2.walls.north = false;
+            } else if (dy === -1) {
+                // cell2 is to the north of cell1
+                cell1.walls.north = false;
+                cell2.walls.south = false;
+            }
+        }
+
+        // Shuffle array (Fisher-Yates algorithm)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // Create Matter.js bodies for the maze
+        function createMazeBodies(grid, width, height) {
+            // Calculate cell size based on canvas dimensions
+            const cellWidth = canvas.width / (width + 2);
+            const cellHeight = canvas.height / (height + 2);
+            
+            // Offset to center the maze
+            const offsetX = cellWidth;
+            const offsetY = cellHeight;
+            
+            // Create boundary walls
+            createBoundaryWalls(width, height, cellWidth, cellHeight, offsetX, offsetY);
+            
+            // Create maze walls
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const cell = grid[y][x];
+                    
+                    // Calculate cell position
+                    const cellX = offsetX + x * cellWidth;
+                    const cellY = offsetY + y * cellHeight;
+                    
+                    // Create north wall if present
+                    if (cell.walls.north) {
+                        const wall = Bodies.rectangle(
+                            cellX + cellWidth / 2,
+                            cellY,
+                            cellWidth,
+                            5,
+                            { isStatic: true, render: { fillStyle: '#000' }}
+                        );
+                        walls.push(wall);
+                        World.add(engine.world, wall);
+                    }
+                    
+                    // Create east wall if present
+                    if (cell.walls.east) {
+                        const wall = Bodies.rectangle(
+                            cellX + cellWidth,
+                            cellY + cellHeight / 2,
+                            5,
+                            cellHeight,
+                            { isStatic: true, render: { fillStyle: '#000' }}
+                        );
+                        walls.push(wall);
+                        World.add(engine.world, wall);
+                    }
+                    
+                    // Create south wall if present
+                    if (cell.walls.south) {
+                        const wall = Bodies.rectangle(
+                            cellX + cellWidth / 2,
+                            cellY + cellHeight,
+                            cellWidth,
+                            5,
+                            { isStatic: true, render: { fillStyle: '#000' }}
+                        );
+                        walls.push(wall);
+                        World.add(engine.world, wall);
+                    }
+                    
+                    // Create west wall if present
+                    if (cell.walls.west) {
+                        const wall = Bodies.rectangle(
+                            cellX,
+                            cellY + cellHeight / 2,
+                            5,
+                            cellHeight,
+                            { isStatic: true, render: { fillStyle: '#000' }}
+                        );
+                        walls.push(wall);
+                        World.add(engine.world, wall);
+                    }
+                }
+            }
+            
+            // Create exit at the bottom right
+            const exitX = offsetX + (width - 0.5) * cellWidth;
+            const exitY = offsetY + height * cellHeight;
+            
+            exit = Bodies.rectangle(
+                exitX,
+                exitY,
+                cellWidth,
+                10,
+                { 
+                    isStatic: true, 
+                    isSensor: true,
+                    render: { 
+                        fillStyle: '#ff0000',
+                        opacity: 0.8
+                    }
+                }
+            );
+            
+            World.add(engine.world, exit);
+            
+            // Create the ball
+            const ballRadius = Math.min(cellWidth, cellHeight) * 0.3;
+            const ballX = offsetX + width * cellWidth / 2;
+            const ballY = offsetY + height * cellHeight / 2;
+            
+            ball = Bodies.circle(
+                ballX,
+                ballY,
+                ballRadius,
+                {
+                    friction: parseFloat(frictionSlider.value),
+                    restitution: parseFloat(document.getElementById('bounciness').value),
+                    density: 0.001,
+                    frictionStatic: 0.1, // Lower value makes it start moving more easily on slight inclines
+                    frictionAir: 0.001, // Small air friction for more natural movement
+                    render: {
+                        fillStyle: '#2196F3',
+                        strokeStyle: '#0D47A1',
+                        lineWidth: 2
+                    }
+                }
+            );
+            
+            // Set ball mass
+            Body.setMass(ball, parseFloat(ballMassSlider.value));
+            
+            World.add(engine.world, ball);
+        }
+
+        // Create boundary walls
+        function createBoundaryWalls(width, height, cellWidth, cellHeight, offsetX, offsetY) {
+            // Top wall
+            const topWall = Bodies.rectangle(
+                canvas.width / 2,
+                offsetY - cellHeight / 2,
+                canvas.width,
+                cellHeight,
+                { isStatic: true, render: { fillStyle: '#333' }}
+            );
+            
+            // Left wall
+            const leftWall = Bodies.rectangle(
+                offsetX - cellWidth / 2,
+                canvas.height / 2,
+                cellWidth,
+                canvas.height,
+                { isStatic: true, render: { fillStyle: '#333' }}
+            );
+            
+            // Right wall
+            const rightWall = Bodies.rectangle(
+                offsetX + width * cellWidth + cellWidth / 2,
+                canvas.height / 2,
+                cellWidth,
+                canvas.height,
+                { isStatic: true, render: { fillStyle: '#333' }}
+            );
+            
+            // Bottom wall
+            const bottomWall = Bodies.rectangle(
+                canvas.width / 2,
+                offsetY + height * cellHeight + cellHeight / 2,
+                canvas.width,
+                cellHeight,
+                { isStatic: true, render: { fillStyle: '#333' }}
+            );
+            
+            // Add walls to world
+            walls.push(topWall, leftWall, rightWall, bottomWall);
+            World.add(engine.world, [topWall, leftWall, rightWall, bottomWall]);
+        }
+
+        // Reset the ball to the center
+        function resetBall() {
+            if (!ball) return;
+            
+            // Get canvas center
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Reset position and velocity
+            Body.setPosition(ball, { x: centerX, y: centerY });
+            Body.setVelocity(ball, { x: 0, y: 0 });
+            Body.setAngularVelocity(ball, 0);
+            
+            // Reset rotation
+            currentRotation = 0;
+            engine.gravity.x = 0;
+            engine.gravity.y = 1;
+            
+            // Reset status
+            statusEl.textContent = 'Get the ball to the red exit!';
+            statusEl.style.backgroundColor = 'rgba(255,255,255,0.8)';
+            statusEl.style.color = 'black';
+            
+            isGameWon = false;
+        }
+
+        // Clear all bodies from the world
+        function clearBodies() {
+            // Remove walls
+            walls.forEach(wall => World.remove(engine.world, wall));
+            walls = [];
+            
+            // Remove ball and exit
+            if (ball) World.remove(engine.world, ball);
+            if (exit) World.remove(engine.world, exit);
+        }
+
+        // Handle win condition
+        function handleWin() {
+            if (isGameWon) return;
+            
+            isGameWon = true;
+            statusEl.textContent = 'You Win! 🎉';
+            statusEl.style.backgroundColor = '#4CAF50';
+            statusEl.style.color = 'white';
+        }
+
+        // Start the application when the page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
