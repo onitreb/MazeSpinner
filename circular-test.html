@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circular Maze Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        
+        #maze-container {
+            width: 800px;
+            height: 800px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+    <div id="maze-container"></div>
+    
+    <script type="module">
+        // Simple direct implementation for testing
+        
+        // Import Matter.js
+        const { Engine, Render, World, Bodies, Runner } = Matter;
+        
+        // Get the container
+        const container = document.getElementById('maze-container');
+        
+        // Create engine
+        const engine = Engine.create();
+        
+        // Create renderer
+        const render = Render.create({
+            element: container,
+            engine: engine,
+            options: {
+                width: container.clientWidth,
+                height: container.clientHeight,
+                wireframes: false,
+                background: '#f5f5f5'
+            }
+        });
+        
+        // Create a simple maze with walls and a ball
+        const walls = [];
+        
+        // Create outer boundary
+        const wallThickness = 20;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        // Top wall
+        walls.push(Bodies.rectangle(width/2, 0, width, wallThickness, { isStatic: true }));
+        
+        // Bottom wall
+        walls.push(Bodies.rectangle(width/2, height, width, wallThickness, { isStatic: true }));
+        
+        // Left wall
+        walls.push(Bodies.rectangle(0, height/2, wallThickness, height, { isStatic: true }));
+        
+        // Right wall
+        walls.push(Bodies.rectangle(width, height/2, wallThickness, height, { isStatic: true }));
+        
+        // Add some inner walls
+        walls.push(Bodies.rectangle(width/4, height/2, wallThickness, height/2, { isStatic: true }));
+        walls.push(Bodies.rectangle(width/2, height/4, width/2, wallThickness, { isStatic: true }));
+        walls.push(Bodies.rectangle(3*width/4, height/2, wallThickness, height/2, { isStatic: true }));
+        
+        // Create a ball
+        const ball = Bodies.circle(width/2, height/2, 20, {
+            restitution: 0.8,
+            friction: 0.05,
+            render: {
+                fillStyle: '#ff5722'
+            }
+        });
+        
+        // Add all bodies to the world
+        World.add(engine.world, [...walls, ball]);
+        
+        // Run the engine
+        Engine.run(engine);
+        
+        // Run the renderer
+        Render.run(render);
+        
+        // Log to check if everything is loaded
+        console.log("Test maze created successfully");
+    </script>
+</body>
+</html>

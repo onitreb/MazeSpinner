@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circular Physics Maze Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .controls {
+            width: 300px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 5px;
+        }
+
+        .value-display {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px 0;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .maze-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .link-home {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #333;
+            text-decoration: none;
+            padding: 5px 10px;
+            background: #eee;
+            border-radius: 4px;
+        }
+
+        .link-home:hover {
+            background: #ddd;
+        }
+
+        @media (max-width: 800px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .controls {
+                width: auto;
+                order: 2;
+            }
+
+            .maze-container {
+                order: 1;
+                height: 70vh;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="debug.js" type="module"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <h1>Circular Maze</h1>
+            
+            <div class="control-group">
+                <label for="algorithm">Algorithm</label>
+                <select id="algorithm">
+                    <option value="backtracker">Recursive Backtracker</option>
+                    <option value="kruskal">Kruskal's Algorithm</option>
+                    <option value="prim">Prim's Algorithm</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="rings">Number of Rings</label>
+                <input type="range" id="rings" min="3" max="15" value="5">
+                <div class="value-display" id="rings-value">5</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="sectors">Sectors in Outer Ring</label>
+                <input type="range" id="sectors" min="6" max="36" value="12">
+                <div class="value-display" id="sectors-value">12</div>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="centerOpen"> 
+                    Open Center
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label for="ballSize">Ball Size</label>
+                <input type="range" id="ballSize" min="5" max="20" value="10">
+                <div class="value-display" id="ballSize-value">10</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="ballMass">Ball Mass</label>
+                <input type="range" id="ballMass" min="1" max="50" value="10">
+                <div class="value-display" id="ballMass-value">10</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="wallThickness">Wall Thickness</label>
+                <input type="range" id="wallThickness" min="2" max="10" value="5">
+                <div class="value-display" id="wallThickness-value">5</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="friction">Friction</label>
+                <input type="range" id="friction" min="0" max="100" value="5">
+                <div class="value-display" id="friction-value">0.05</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="restitution">Bounciness</label>
+                <input type="range" id="restitution" min="0" max="100" value="70">
+                <div class="value-display" id="restitution-value">0.7</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="rotationSpeed">Rotation Speed</label>
+                <input type="range" id="rotationSpeed" min="1" max="20" value="5">
+                <div class="value-display" id="rotationSpeed-value">0.05</div>
+            </div>
+            
+            <button id="generate">Generate New Maze</button>
+            <button id="rotate-left">Rotate Left</button>
+            <button id="rotate-right">Rotate Right</button>
+            <button id="reset-ball">Reset Ball</button>
+        </div>
+        
+        <div class="maze-container" id="mazeContainer"></div>
+        
+        <a href="landing.html" class="link-home">Back to Home</a>
+    </div>
+    
+    <script type="module">
+        console.log("Starting circular maze module");
+        
+        try {
+            const { initMaze, MazeTypes } = await import('./js/main.js');
+            console.log("Imported main.js successfully:", { initMaze, MazeTypes });
+            
+            // Get DOM elements
+            const mazeContainer = document.getElementById('mazeContainer');
+            console.log("Maze container element:", mazeContainer);
+            
+            const generateButton = document.getElementById('generate');
+            const rotateLeftButton = document.getElementById('rotate-left');
+            const rotateRightButton = document.getElementById('rotate-right');
+            const resetBallButton = document.getElementById('reset-ball');
+        
+        // Get sliders and value displays
+        const algorithmSelect = document.getElementById('algorithm');
+        const ringsSlider = document.getElementById('rings');
+        const ringsValue = document.getElementById('rings-value');
+        const sectorsSlider = document.getElementById('sectors');
+        const sectorsValue = document.getElementById('sectors-value');
+        const centerOpenCheckbox = document.getElementById('centerOpen');
+        const ballSizeSlider = document.getElementById('ballSize');
+        const ballSizeValue = document.getElementById('ballSize-value');
+        const ballMassSlider = document.getElementById('ballMass');
+        const ballMassValue = document.getElementById('ballMass-value');
+        const wallThicknessSlider = document.getElementById('wallThickness');
+        const wallThicknessValue = document.getElementById('wallThickness-value');
+        const frictionSlider = document.getElementById('friction');
+        const frictionValue = document.getElementById('friction-value');
+        const restitutionSlider = document.getElementById('restitution');
+        const restitutionValue = document.getElementById('restitution-value');
+        const rotationSpeedSlider = document.getElementById('rotationSpeed');
+        const rotationSpeedValue = document.getElementById('rotationSpeed-value');
+        
+        // Update value displays when sliders change
+        function setupSliders() {
+            ringsSlider.addEventListener('input', () => {
+                ringsValue.textContent = ringsSlider.value;
+            });
+            
+            sectorsSlider.addEventListener('input', () => {
+                sectorsValue.textContent = sectorsSlider.value;
+            });
+            
+            ballSizeSlider.addEventListener('input', () => {
+                ballSizeValue.textContent = ballSizeSlider.value;
+            });
+            
+            ballMassSlider.addEventListener('input', () => {
+                ballMassValue.textContent = ballMassSlider.value;
+            });
+            
+            wallThicknessSlider.addEventListener('input', () => {
+                wallThicknessValue.textContent = wallThicknessSlider.value;
+            });
+            
+            frictionSlider.addEventListener('input', () => {
+                const value = frictionSlider.value / 100;
+                frictionValue.textContent = value.toFixed(2);
+            });
+            
+            restitutionSlider.addEventListener('input', () => {
+                const value = restitutionSlider.value / 100;
+                restitutionValue.textContent = value.toFixed(2);
+            });
+            
+            rotationSpeedSlider.addEventListener('input', () => {
+                const value = rotationSpeedSlider.value / 100;
+                rotationSpeedValue.textContent = value.toFixed(2);
+            });
+        }
+        
+        // Get configuration from UI controls
+        function getConfig() {
+            return {
+                algorithm: algorithmSelect.value,
+                rings: parseInt(ringsSlider.value),
+                sectorsInOuterRing: parseInt(sectorsSlider.value),
+                centerOpen: centerOpenCheckbox.checked,
+                ballRadius: parseInt(ballSizeSlider.value),
+                ballMass: parseInt(ballMassSlider.value),
+                wallThickness: parseInt(wallThicknessSlider.value),
+                friction: parseInt(frictionSlider.value) / 100,
+                restitution: parseInt(restitutionSlider.value) / 100,
+                rotationSpeed: parseInt(rotationSpeedSlider.value) / 100
+            };
+        }
+        
+        // Initialize the maze
+        let mazeAPI;
+        function initializeMaze() {
+            mazeAPI = initMaze(MazeTypes.CIRCULAR, mazeContainer, getConfig());
+        }
+        
+        // Setup event listeners
+        function setupListeners() {
+            generateButton.addEventListener('click', () => {
+                initializeMaze();
+            });
+            
+            rotateLeftButton.addEventListener('click', () => {
+                if (mazeAPI && mazeAPI.getEngine()) {
+                    mazeAPI.getEngine().rotateLeft();
+                }
+            });
+            
+            rotateRightButton.addEventListener('click', () => {
+                if (mazeAPI && mazeAPI.getEngine()) {
+                    mazeAPI.getEngine().rotateRight();
+                }
+            });
+            
+            resetBallButton.addEventListener('click', () => {
+                if (mazeAPI && mazeAPI.getEngine()) {
+                    mazeAPI.getEngine().resetBall();
+                }
+            });
+            
+            // Add keyboard controls
+            window.addEventListener('keydown', (e) => {
+                if (!mazeAPI || !mazeAPI.getEngine()) return;
+                
+                switch (e.key) {
+                    case 'ArrowLeft':
+                        mazeAPI.getEngine().rotateLeft();
+                        break;
+                    case 'ArrowRight':
+                        mazeAPI.getEngine().rotateRight();
+                        break;
+                    case 'r':
+                        mazeAPI.getEngine().resetBall();
+                        break;
+                }
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (mazeAPI) {
+                    initializeMaze();
+                }
+            });
+        }
+        
+        // Initialize the application
+        function init() {
+            setupSliders();
+            setupListeners();
+            initializeMaze();
+        }
+        
+        // Start when the page is loaded
+        window.addEventListener('load', init);
+        
+        } catch (error) {
+            console.error("Error in circular maze module:", error);
+            document.querySelector('.maze-container').innerHTML = `
+                <div style="padding: 20px; background-color: #ffebee; border: 1px solid #f44336; border-radius: 4px;">
+                    <h3>Error loading maze</h3>
+                    <p>${error.message}</p>
+                    <pre>${error.stack}</pre>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

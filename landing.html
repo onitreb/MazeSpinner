@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MazeSpinner - Maze Generator with Physics</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .maze-types {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+        
+        .maze-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 350px;
+            transition: transform 0.3s ease;
+        }
+        
+        .maze-card:hover {
+            transform: translateY(-10px);
+        }
+        
+        .maze-image {
+            width: 100%;
+            height: 200px;
+            background-color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .circular-preview {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background-color: #ddd;
+            background-image: radial-gradient(circle, transparent 0%, transparent 20%, #fff 20%, #fff 25%, 
+                              transparent 25%, transparent 40%, #fff 40%, #fff 45%, 
+                              transparent 45%, transparent 60%, #fff 60%, #fff 65%);
+            position: relative;
+        }
+        
+        .circular-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: conic-gradient(#ddd 0deg, #ddd 30deg, #fff 30deg, #fff 40deg, 
+                              #ddd 40deg, #ddd 80deg, #fff 80deg, #fff 90deg, 
+                              #ddd 90deg, #ddd 140deg, #fff 140deg, #fff 150deg,
+                              #ddd 150deg, #ddd 210deg, #fff 210deg, #fff 220deg,
+                              #ddd 220deg, #ddd 270deg, #fff 270deg, #fff 280deg,
+                              #ddd 280deg, #ddd 330deg, #fff 330deg, #fff 340deg, #ddd 340deg);
+            border-radius: 50%;
+            z-index: 1;
+        }
+        
+        .circular-preview::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: #ff5722;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+        
+        .rectangular-preview {
+            width: 180px;
+            height: 180px;
+            background-color: #ddd;
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            gap: 2px;
+        }
+        
+        .rectangular-preview .cell {
+            background-color: #ddd;
+            position: relative;
+        }
+        
+        .rectangular-preview .cell.path {
+            background-color: #fff;
+        }
+        
+        .rectangular-preview .ball {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #ff5722;
+            border-radius: 50%;
+            top: 10px;
+            left: 10px;
+            z-index: 2;
+        }
+        
+        .maze-info {
+            padding: 20px;
+        }
+        
+        .maze-info h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .maze-info p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .maze-link {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        
+        .maze-link:hover {
+            background-color: #45a049;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 50px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .maze-types {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .maze-card {
+                width: 100%;
+                max-width: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>MazeSpinner</h1>
+            <div class="description">Interactive physics-based maze generator with multiple algorithms</div>
+        </header>
+        
+        <div class="maze-types">
+            <div class="maze-card">
+                <div class="maze-image">
+                    <div class="rectangular-preview">
+                        <!-- Generate maze representation -->
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="cell"></div>
+                        <div class="cell"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell path"></div>
+                        <div class="cell"></div>
+                        <div class="ball"></div>
+                    </div>
+                </div>
+                <div class="maze-info">
+                    <h2>Rectangular Maze</h2>
+                    <p>Classical grid-based maze with square cells. Navigate through a rectangular grid maze with physics-based ball movement.</p>
+                    <a href="rect.html" class="maze-link">Play Rectangular Maze</a>
+                </div>
+            </div>
+            
+            <div class="maze-card">
+                <div class="maze-image">
+                    <div class="circular-preview"></div>
+                </div>
+                <div class="maze-info">
+                    <h2>Circular Maze</h2>
+                    <p>Unique circular maze with rings and sectors. Rotate the maze to guide the ball through concentric rings to the center or exit.</p>
+                    <a href="circular-modular.html" class="maze-link">Play Circular Maze</a>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>MazeSpinner - A physics-based maze generator created with Matter.js</p>
+            <p>Algorithms: Recursive Backtracker, Kruskal's Algorithm, Prim's Algorithm</p>
+        </footer>
+    </div>
+</body>
+</html>

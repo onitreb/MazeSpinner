@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Circular Maze</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        
+        #maze-container {
+            width: 800px;
+            height: 800px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+    <div id="maze-container"></div>
+    
+    <div class="controls">
+        <button id="regenerate">Regenerate Maze</button>
+        <button id="rotate-left">Rotate Left</button>
+        <button id="rotate-right">Rotate Right</button>
+        <button id="reset-ball">Reset Ball</button>
+    </div>
+    
+    <script>
+        // Matter.js modules
+        const { Engine, Render, World, Bodies, Body, Runner, Common } = Matter;
+        
+        // Configuration
+        const config = {
+            rings: 5,
+            sectorsInOuterRing: 12,
+            wallThickness: 5,
+            wallColor: '#333',
+            ballRadius: 10,
+            ballColor: '#ff5722',
+            friction: 0.05,
+            restitution: 0.7,
+            rotationSpeed: 0.05
+        };
+        
+        // Get the container
+        const container = document.getElementById('maze-container');
+        
+        // Module variables
+        let engine, render, runner;
+        let ball, walls = [];
+        let gravity = { x: 0, y: 1 };
+        let mesh;
+        
+        // Create circular grid
+        function createCircularGrid(rings, sectorsInOuterRing) {
+            const grid = [];
+            
+            for (let r = 0; r < rings; r++) {
+                grid[r] = [];
+                // Scale number of sectors based on ring radius
+                const sectors = Math.max(6, Math.floor((r+1) * sectorsInOuterRing / rings));
+                
+                for (let s = 0; s < sectors; s++) {
+                    grid[r][s] = {
+                        ring: r,
+                        sector: s,
+                        totalSectors: sectors,
+                        inner: true,
+                        outer: true,
+                        cw: true,
+                        ccw: true,
+                        visited: false
+                    };
+                }
+            }
+            
+            return grid;
+        }
+        
+        // Get neighbors of a cell
+        function getNeighbors(cell, grid) {
+            const neighbors = [];
+            const r = cell.ring;
+            const s = cell.sector;
+            const totalSectors = cell.totalSectors;
+            
+            // Inner neighbor
+            if (r > 0) {
+                const innerRingSectorCount = grid[r-1].length;
+                const innerRatio = innerRingSectorCount / totalSectors;
+                const innerSector = Math.floor(s * innerRatio);
+                
+                if (grid[r-1] && grid[r-1][innerSector]) {
+                    neighbors.push({
+                        cell: grid[r-1][innerSector],
+                        direction: 'inner'
+                    });
+                }
+            }
+            
+            // Outer neighbor
+            if (r < grid.length - 1) {
+                const outerRingSectorCount = grid[r+1].length;
+                const outerRatio = outerRingSectorCount / totalSectors;
+                const startSector = Math.floor(s * outerRatio);
+                const endSector = Math.floor((s + 1) * outerRatio) - 1;
+                
+                // Use the middle sector if multiple
+                const outerSector = Math.round((startSector + endSector) / 2);
+                
+                if (grid[r+1] && grid[r+1][outerSector]) {
+                    neighbors.push({
+                        cell: grid[r+1][outerSector],
+                        direction: 'outer'
+                    });
+                }
+            }
+            
+            // Clockwise neighbor
+            const cwSector = (s + 1) % totalSectors;
+            if (grid[r] && grid[r][cwSector]) {
+                neighbors.push({
+                    cell: grid[r][cwSector],
+                    direction: 'cw'
+                });
+            }
+            
+            // Counter-clockwise neighbor
+            const ccwSector = (s - 1 + totalSectors) % totalSectors;
+            if (grid[r] && grid[r][ccwSector]) {
+                neighbors.push({
+                    cell: grid[r][ccwSector],
+                    direction: 'ccw'
+                });
+            }
+            
+            return neighbors;
+        }
+        
+        // Remove walls between two cells
+        function removeWalls(current, neighbor, direction) {
+            switch (direction) {
+                case 'inner':
+                    current.inner = false;
+                    neighbor.outer = false;
+                    break;
+                case 'outer':
+                    current.outer = false;
+                    neighbor.inner = false;
+                    break;
+                case 'cw':
+                    current.cw = false;
+                    neighbor.ccw = false;
+                    break;
+                case 'ccw':
+                    current.ccw = false;
+                    neighbor.cw = false;
+                    break;
+            }
+        }
+        
+        // Generate maze using recursive backtracker algorithm
+        function generateMaze(grid) {
+            // Reset all cells
+            for (let r = 0; r < grid.length; r++) {
+                for (let s = 0; s < grid[r].length; s++) {
+                    grid[r][s].visited = false;
+                }
+            }
+            
+            // Flatten the grid
+            const flatGrid = [];
+            for (let r = 0; r < grid.length; r++) {
+                for (let s = 0; s < grid[r].length; s++) {
+                    flatGrid.push(grid[r][s]);
+                }
+            }
+            
+            // Pick a random cell to start
+            const startCell = flatGrid[Math.floor(Math.random() * flatGrid.length)];
+            startCell.visited = true;
+            
+            // Stack for backtracking
+            const stack = [startCell];
+            
+            while (stack.length > 0) {
+                const currentCell = stack[stack.length - 1];
+                
+                // Get unvisited neighbors
+                const unvisitedNeighbors = getNeighbors(currentCell, grid)
+                    .filter(neighbor => !neighbor.cell.visited);
+                
+                if (unvisitedNeighbors.length > 0) {
+                    // Choose a random unvisited neighbor
+                    const randomIndex = Math.floor(Math.random() * unvisitedNeighbors.length);
+                    const randomNeighbor = unvisitedNeighbors[randomIndex];
+                    const nextCell = randomNeighbor.cell;
+                    
+                    // Remove walls between current cell and chosen neighbor
+                    removeWalls(currentCell, nextCell, randomNeighbor.direction);
+                    
+                    // Mark the chosen cell as visited and push it to the stack
+                    nextCell.visited = true;
+                    stack.push(nextCell);
+                } else {
+                    // Backtrack
+                    stack.pop();
+                }
+            }
+            
+            return grid;
+        }
+        
+        // Create physics bodies for maze walls
+        function createMazeBodies(grid, ringCount, canvasSize) {
+            const bodies = [];
+            const centerX = canvasSize / 2;
+            const centerY = canvasSize / 2;
+            const maxRadius = canvasSize * 0.45;
+            const wallThickness = config.wallThickness;
+            
+            // Create walls for each cell
+            for (let r = 0; r < grid.length; r++) {
+                for (let s = 0; s < grid[r].length; s++) {
+                    const cell = grid[r][s];
+                    const totalSectors = cell.totalSectors;
+                    const angleSize = 2 * Math.PI / totalSectors;
+                    const startAngle = angleSize * cell.sector;
+                    const midAngle = startAngle + angleSize / 2;
+                    
+                    // Inner wall (towards center)
+                    if (cell.inner) {
+                        const innerRadius = (cell.ring / ringCount) * maxRadius;
+                        // Use multiple segments for curved inner wall
+                        const segments = 5; // More segments for smoother curve
+                        const segmentAngleSize = angleSize / segments;
+                        
+                        for (let i = 0; i < segments; i++) {
+                            const segStartAngle = startAngle + i * segmentAngleSize;
+                            const segEndAngle = segStartAngle + segmentAngleSize;
+                            const segMidAngle = (segStartAngle + segEndAngle) / 2;
+                            
+                            const x1 = centerX + innerRadius * Math.cos(segStartAngle);
+                            const y1 = centerY + innerRadius * Math.sin(segStartAngle);
+                            const x2 = centerX + innerRadius * Math.cos(segEndAngle);
+                            const y2 = centerY + innerRadius * Math.sin(segEndAngle);
+                            
+                            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                            
+                            if (distance > wallThickness / 2) {
+                                const wall = Bodies.rectangle(
+                                    (x1 + x2) / 2,
+                                    (y1 + y2) / 2,
+                                    distance,
+                                    wallThickness,
+                                    {
+                                        isStatic: true,
+                                        angle: segMidAngle + Math.PI / 2,
+                                        friction: 0.001,
+                                        render: {
+                                            fillStyle: config.wallColor
+                                        }
+                                    }
+                                );
+                                
+                                bodies.push(wall);
+                            }
+                        }
+                    }
+                    
+                    // Outer wall (away from center)
+                    if (cell.outer) {
+                        const outerRadius = ((cell.ring + 1) / ringCount) * maxRadius;
+                        // Use multiple segments for curved outer wall
+                        const segments = 5; // More segments for smoother curve
+                        const segmentAngleSize = angleSize / segments;
+                        
+                        for (let i = 0; i < segments; i++) {
+                            const segStartAngle = startAngle + i * segmentAngleSize;
+                            const segEndAngle = segStartAngle + segmentAngleSize;
+                            const segMidAngle = (segStartAngle + segEndAngle) / 2;
+                            
+                            const x1 = centerX + outerRadius * Math.cos(segStartAngle);
+                            const y1 = centerY + outerRadius * Math.sin(segStartAngle);
+                            const x2 = centerX + outerRadius * Math.cos(segEndAngle);
+                            const y2 = centerY + outerRadius * Math.sin(segEndAngle);
+                            
+                            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                            
+                            if (distance > wallThickness / 2) {
+                                const wall = Bodies.rectangle(
+                                    (x1 + x2) / 2,
+                                    (y1 + y2) / 2,
+                                    distance,
+                                    wallThickness,
+                                    {
+                                        isStatic: true,
+                                        angle: segMidAngle + Math.PI / 2,
+                                        friction: 0.001,
+                                        render: {
+                                            fillStyle: config.wallColor
+                                        }
+                                    }
+                                );
+                                
+                                bodies.push(wall);
+                            }
+                        }
+                    }
+                    
+                    // Clockwise wall
+                    if (cell.cw) {
+                        const innerRadius = (cell.ring / ringCount) * maxRadius;
+                        const outerRadius = ((cell.ring + 1) / ringCount) * maxRadius;
+                        const angle = startAngle + angleSize;
+                        
+                        const innerX = centerX + innerRadius * Math.cos(angle);
+                        const innerY = centerY + innerRadius * Math.sin(angle);
+                        const outerX = centerX + outerRadius * Math.cos(angle);
+                        const outerY = centerY + outerRadius * Math.sin(angle);
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(outerX - innerX, 2) + Math.pow(outerY - innerY, 2)
+                        );
+                        
+                        const wall = Bodies.rectangle(
+                            (innerX + outerX) / 2,
+                            (innerY + outerY) / 2,
+                            distance,
+                            wallThickness,
+                            {
+                                isStatic: true,
+                                angle: angle,
+                                friction: 0.001,
+                                render: {
+                                    fillStyle: config.wallColor
+                                }
+                            }
+                        );
+                        
+                        bodies.push(wall);
+                    }
+                    
+                    // Counter-clockwise wall
+                    if (cell.ccw) {
+                        const innerRadius = (cell.ring / ringCount) * maxRadius;
+                        const outerRadius = ((cell.ring + 1) / ringCount) * maxRadius;
+                        const angle = startAngle;
+                        
+                        const innerX = centerX + innerRadius * Math.cos(angle);
+                        const innerY = centerY + innerRadius * Math.sin(angle);
+                        const outerX = centerX + outerRadius * Math.cos(angle);
+                        const outerY = centerY + outerRadius * Math.sin(angle);
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(outerX - innerX, 2) + Math.pow(outerY - innerY, 2)
+                        );
+                        
+                        const wall = Bodies.rectangle(
+                            (innerX + outerX) / 2,
+                            (innerY + outerY) / 2,
+                            distance,
+                            wallThickness,
+                            {
+                                isStatic: true,
+                                angle: angle,
+                                friction: 0.001,
+                                render: {
+                                    fillStyle: config.wallColor
+                                }
+                            }
+                        );
+                        
+                        bodies.push(wall);
+                    }
+                }
+            }
+            
+            // Create outer boundary wall
+            const segments = 72; // More segments for a smoother circle
+            const outerRadius = maxRadius;
+            
+            for (let i = 0; i < segments; i++) {
+                const angle = (i / segments) * 2 * Math.PI;
+                const nextAngle = ((i + 1) / segments) * 2 * Math.PI;
+                
+                const x1 = centerX + outerRadius * Math.cos(angle);
+                const y1 = centerY + outerRadius * Math.sin(angle);
+                const x2 = centerX + outerRadius * Math.cos(nextAngle);
+                const y2 = centerY + outerRadius * Math.sin(nextAngle);
+                
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                
+                const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                
+                const wall = Bodies.rectangle(
+                    midX,
+                    midY,
+                    distance,
+                    wallThickness,
+                    {
+                        isStatic: true,
+                        angle: (angle + nextAngle) / 2 + Math.PI / 2,
+                        friction: 0.001,
+                        render: {
+                            fillStyle: config.wallColor
+                        }
+                    }
+                );
+                
+                bodies.push(wall);
+            }
+            
+            return bodies;
+        }
+        
+        // Initialize the physics engine
+        function initializeEngine() {
+            // Clean up existing engine
+            if (render) {
+                Render.stop(render);
+                if (render.canvas && render.canvas.parentNode) {
+                    render.canvas.parentNode.removeChild(render.canvas);
+                }
+                render.canvas = null;
+                render.context = null;
+                render.textures = {};
+            }
+            
+            if (runner) {
+                Runner.stop(runner);
+            }
+            
+            if (engine) {
+                World.clear(engine.world, false);
+                Engine.clear(engine);
+            }
+            
+            // Create new engine
+            engine = Engine.create({
+                positionIterations: 6,
+                velocityIterations: 4
+            });
+            
+            // Set gravity
+            engine.world.gravity.x = gravity.x;
+            engine.world.gravity.y = gravity.y;
+            
+            const canvasSize = Math.min(container.clientWidth, container.clientHeight);
+            
+            // Create renderer
+            render = Render.create({
+                element: container,
+                engine: engine,
+                options: {
+                    width: canvasSize,
+                    height: canvasSize,
+                    wireframes: false,
+                    background: '#f5f5f5',
+                    showAngleIndicator: false,
+                    // Custom render function to handle rotation
+                    beforeRender: function() {
+                        const ctx = render.context;
+                        const canvasWidth = render.options.width;
+                        const canvasHeight = render.options.height;
+                        
+                        // Save the context state
+                        ctx.save();
+                        
+                        // Translate to center, scale slightly to prevent cropping during rotation
+                        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+                        ctx.scale(0.75, 0.75);
+                        ctx.translate(-canvasWidth / 2, -canvasHeight / 2);
+                    },
+                    afterRender: function() {
+                        // Restore the context state
+                        render.context.restore();
+                    }
+                }
+            });
+            
+            // Create runner
+            runner = Runner.create();
+        }
+        
+        // Create the maze
+        function createMaze() {
+            // Initialize engine
+            initializeEngine();
+            
+            // Create grid
+            const grid = createCircularGrid(config.rings, config.sectorsInOuterRing);
+            
+            // Generate maze
+            generateMaze(grid);
+            
+            // Create physics bodies
+            const canvasSize = Math.min(container.clientWidth, container.clientHeight);
+            walls = createMazeBodies(grid, config.rings, canvasSize);
+            
+            // Add walls to the world
+            World.add(engine.world, walls);
+            
+            // Create ball
+            createBall(canvasSize);
+            
+            // Start the engine
+            Runner.run(runner, engine);
+            Render.run(render);
+        }
+        
+        // Create ball
+        function createBall(canvasSize) {
+            ball = Bodies.circle(
+                canvasSize / 2,
+                canvasSize / 2,
+                config.ballRadius,
+                {
+                    mass: 10,
+                    restitution: config.restitution,
+                    friction: config.friction,
+                    frictionAir: 0.01,
+                    render: {
+                        fillStyle: config.ballColor
+                    }
+                }
+            );
+            
+            // Add ball to the world
+            World.add(engine.world, ball);
+        }
+        
+        // Reset ball to center
+        function resetBall() {
+            if (!ball) return;
+            
+            const canvasSize = Math.min(container.clientWidth, container.clientHeight);
+            
+            Body.setPosition(ball, {
+                x: canvasSize / 2,
+                y: canvasSize / 2
+            });
+            
+            Body.setVelocity(ball, {
+                x: 0,
+                y: 0
+            });
+            
+            Body.setAngularVelocity(ball, 0);
+        }
+        
+        // Rotate the maze
+        function rotateMaze(direction) {
+            const angle = Math.atan2(gravity.y, gravity.x);
+            const newAngle = angle + (direction * config.rotationSpeed);
+            
+            gravity.x = Math.cos(newAngle);
+            gravity.y = Math.sin(newAngle);
+            
+            engine.world.gravity.x = gravity.x;
+            engine.world.gravity.y = gravity.y;
+        }
+        
+        // Add event listeners
+        document.getElementById('regenerate').addEventListener('click', createMaze);
+        
+        document.getElementById('rotate-left').addEventListener('click', function() {
+            rotateMaze(-1);
+        });
+        
+        document.getElementById('rotate-right').addEventListener('click', function() {
+            rotateMaze(1);
+        });
+        
+        document.getElementById('reset-ball').addEventListener('click', resetBall);
+        
+        // Add keyboard controls
+        document.addEventListener('keydown', function(event) {
+            switch(event.key) {
+                case 'ArrowLeft':
+                    rotateMaze(-1);
+                    break;
+                case 'ArrowRight':
+                    rotateMaze(1);
+                    break;
+                case 'r':
+                case 'R':
+                    resetBall();
+                    break;
+            }
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            createMaze();
+        });
+        
+        // Create the maze when the page loads
+        window.addEventListener('load', createMaze);
+    </script>
+</body>
+</html>
